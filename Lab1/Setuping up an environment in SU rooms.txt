@@ -1,0 +1,19 @@
+Setuping up an environment in SU rooms
+
+1. Create a new directory
+mkdir ~/Documents/732A70
+
+2. Change directory
+cd ~/Documents/732A70
+
+3. Create a venv
+python3 -m venv .732A70
+
+4. Activate
+source .732A70/bin/activate
+
+5. Install packages
+pip install scipy numpy scikit-learn pandas jupyter
+
+6. Launch jupyter-notebook
+jupyter-notebook
