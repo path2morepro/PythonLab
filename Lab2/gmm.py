@@ -5,28 +5,8 @@ from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from sklearn.mixture import GaussianMixture
 
-class GMM(rv_continuous):
-    def _argcheck(self, wgt, mu, sigma): 
-        ks, ds, _ = sigma.shape
-        # shape of sigma: (k, d, d)
-        print(mu.shape)
-        km, dm = mu.shape
-        # shape of mu: (k, d)
-        k = len(wgt)
-        # shape of wgt: (k, 1)
-        if not np.isclose(np.sum(wgt), 1):
-            raise ValueError(f"The sum of wgt is {np.sum(wgt)}, should be 1.")
-        elif np.any(wgt <= 0) :
-            raise ValueError("All elements in wgt should greater than 0.")
-        
-        if not (k == km and k == ks):
-            raise ValueError("The k of mu and wgt do not match.")
-        elif ds != dm:
-            raise ValueError("The d of mu and wgt do not match.")
-        
-        return True
-    
-    def _pdf(self, x, wgt, mu, sigma):
+class GMM():
+    def pdf(self, x, wgt, mu, sigma):
         # pdf = weights * Guassian(multiple RV)
         # shape of x: (1, d)
         pdf = 0
@@ -35,10 +15,15 @@ class GMM(rv_continuous):
             pdf += wgt[i] * multivariate_normal.pdf(x, mean=mu[i], cov=sigma[i])
         return pdf
     
-    def _cdf(self, x, wgt, mu, sigma):
-        pass
+    def cdf(self, x, wgt, mu, sigma):
+        k = len(wgt)
+        cdf = 0
+        for i in range(k):
+            mvn = multivariate_normal(mean=mu[i], cov=sigma[i])
+            cdf += wgt[i] * mvn.cdf(x) 
+        return cdf
 
-    def _rvs(self, wgt, mu, sigma, size=None, random_state=None):
+    def rvs(self, wgt, mu, sigma, size=None, random_state=None):
         # random sample based on pi
         # generate K sample of multiple gaussian distribution
         if random_state is None:
@@ -48,6 +33,7 @@ class GMM(rv_continuous):
 
         k = len(wgt)  
         d = mu.shape[1]  
+
         component_choices = random_state.choice(k, size=size, p=wgt)
         samples = np.zeros((size, d))
         for i in range(k):
@@ -58,18 +44,19 @@ class GMM(rv_continuous):
     
     def fit(self, data, K):
         gmm = GaussianMixture(n_components=K, covariance_type='full', random_state=123)
-        gmm.fit(data)
-        self.weights_ = gmm.weights_
-        self.means_ = gmm.means_
-        self.covariances_ = gmm.covariances_
-        return self
+        gmm.fit(data) 
+        return [gmm.weights_ , gmm.means_, gmm.covariances_]
         
 if __name__ == "__main__":
-    wgt = np.array([0.6, 0.4]) 
+    wgt = np.array([0.6,0.4]) 
     mu = np.array([[0, 0], [3, 3]]) 
-    sigma = [
-        np.array([[1, 0], [0, 1]]),  
-        np.array([[1, 0.5], [0.5, 1]]) 
-    ]
+    sigma = np.array([[[1, 0], [0, 1]],
+                    [[1, 0.5], [0.5, 1]]])
     gmm = GMM()
-    gmm.rvs(wgt = wgt, mu = mu, sigma = sigma)
+    sample = gmm.rvs(wgt = wgt, mu = mu, sigma = sigma, size = 1000)
+    # print(sample)
+    x = sample[0]
+    pdf = gmm.pdf(x = x, wgt=wgt, mu=mu, sigma=sigma)
+    print(pdf)
+    parameters = gmm.fit(data = sample, K = 2)
+    print(parameters[0])
