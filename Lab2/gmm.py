@@ -5,14 +5,24 @@ from scipy.stats import norm
 from scipy.stats import multivariate_normal
 from sklearn.mixture import GaussianMixture
 
+
 class GMM():
     def pdf(self, x, wgt, mu, sigma):
         # pdf = weights * Guassian(multiple RV)
         # shape of x: (1, d)
         pdf = 0
+        # pdf_build_in = 0
         k = len(wgt)
+        d = mu.shape[1]
         for i in range(k):
-            pdf += wgt[i] * multivariate_normal.pdf(x, mean=mu[i], cov=sigma[i])
+            # pdf_build_in += wgt[i] * multivariate_normal.pdf(x, mean=mu[i], cov=sigma[i])
+            # I think I should do it manually
+            det_sigma = np.linalg.det(sigma[i])  
+            inv_sigma = np.linalg.inv(sigma[i])  
+            norm_factor = 1 / (np.sqrt((2 * np.pi)**d * det_sigma))
+            diff = x - mu[i]
+            exponent = -0.5 * diff.T @ inv_sigma @ diff
+            pdf += wgt[i] * norm_factor * np.exp(exponent)
         return pdf
     
     def cdf(self, x, wgt, mu, sigma):
@@ -57,6 +67,5 @@ if __name__ == "__main__":
     # print(sample)
     x = sample[0]
     pdf = gmm.pdf(x = x, wgt=wgt, mu=mu, sigma=sigma)
-    print(pdf)
     parameters = gmm.fit(data = sample, K = 2)
-    print(parameters[0])
+
