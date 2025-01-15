@@ -1,78 +1,104 @@
-# transfer the string into number 
 import numpy as np
-import sys 
-from sklearn.mixture import GaussianMixture
+import sys
+
+from gmm import GMM
 from scipy.stats import multivariate_normal
 
+def string_to_number(text):
+    lines = text.strip().splitlines()  # Split on newlines
+    all_data = []
 
-def string_to_number(str, d):
-    # I am confused about it
-    # if I don't add a parameter d
-    # I cannot fit the gmms
-    values = str.split(",")
-    try:
-        number = [float(value.strip()) for value in values]
-        number = np.array(number).reshape(-1, d)
-    except ValueError as e:
-        raise(f"cannot transfer {str} into number")
-    return number
+    for line_idx, line in enumerate(lines):
+        if not line.strip():
+            continue
+        values = line.split(",")
+        row = [float(v.strip()) for v in values]
+        all_data.append(row)
+
+    data = np.array(all_data, dtype=float)
+    if data.shape[0] == 1:
+        data = data.reshape(-1, 1)
+    return data
+
 
 def calc_llh(data, wgt, mu, sigma):
-    llh_sum = 0
-    for i in range(data.shape[0]):
-        llh = 0
-        for k in range(wgt.shape[0]):
-            mul_norm = multivariate_normal.pdf(x = data[i], mean=mu[k], cov=sigma[k])
-            llh += wgt[k] * mul_norm
-        llh_sum += np.log(llh)
+    llh_sum = 0.0
+    N = data.shape[0]
+    K = wgt.shape[0]
 
+    for i in range(N):
+        mixture_pdf = 0.0
+        for k in range(K):
+            comp_pdf = multivariate_normal.pdf(
+                x=data[i],
+                mean=mu[k],
+                cov=sigma[k]
+            )
+            mixture_pdf += wgt[k] * comp_pdf
+        llh_sum += np.log(mixture_pdf)
     return llh_sum
 
+
 def calc_AIC(data, wgt, mu, sigma):
-    k = wgt.shape[0]
+    K = wgt.shape[0]
     d = mu.shape[1]
-    param_amount = k * d + k * (d * (d + 1)) / 2 + (k - 1)
+    param_amount = K * d + K * (d * (d + 1) / 2.0) + (K - 1)
     llh = calc_llh(data, wgt, mu, sigma)
-    aic = 2 * param_amount - 2 * llh
+    aic = 2.0 * param_amount - 2.0 * llh
     return aic
 
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python analyze.py <data_file.csv>")
+        sys.exit(1)
 
-if __name__ == '__main__':
-    # python analyze.py ./data/data_file1.csv
     file_path = sys.argv[1]
+
     try:
-        with open(file_path, 'r') as file:
-            str = file.read()
+        with open(file_path, "r") as f:
+            text = f.read()
     except FileNotFoundError:
-        print(f"{file_path} not found")
+        print(f"{file_path} not found.")
+        sys.exit(1)
     except Exception as e:
-        print(f"file read error: {e}")
-    d=5
-    data = string_to_number(str=str, d=d)
-    # print(data.shape)
+        print(f"File read error: {e}")
+        sys.exit(1)
 
-    gmm = GaussianMixture(n_components=3, covariance_type='full', random_state=123)
-    model = gmm.fit(data)
-    k_list = list(range(2,11))
-    aic_list = []
+    data = string_to_number(text)
+
+    k_list = range(2, 11)
     results = []
-    for k in k_list:
-        gmm = GaussianMixture(n_components=k, covariance_type='full', random_state=123)
-        # set random_state is fair for any k
-        model = gmm.fit(data) 
-        aic = calc_AIC(data = data, wgt = model.weights_, mu = model.means_, sigma = model.covariances_)
-        aic_list.append(aic)
 
+    best_aic = None
+    best_k = None
+    best_params = None
+
+    for k in k_list:
+        gmm_model = GMM()
+        wgt, mu, sigma = gmm_model.fit(data, K=k)
+        llh = calc_llh(data, wgt, mu, sigma)
+        aic = calc_AIC(data, wgt, mu, sigma)
         results.append({
-            'k': k,
-            'aic': aic,
-            'means': model.means_,
-            'weights': model.weights_,
-            'covariances': model.covariances_,
+            "k": k,
+            "llh": llh,
+            "aic": aic,
+            "weights": wgt,
+            "means": mu,
+            "covariances": sigma
         })
-        
-    optimal_result = min(results, key=lambda x: x['aic'])
-    print(f"The optimal k is: {optimal_result['k']}")
-    print(f"Means: {optimal_result['means']}")
-    print(f"Weights: {optimal_result['weights']}")
-    print(f"Covariances: {optimal_result['covariances']}")
+
+        if (best_aic is None) or (aic < best_aic):
+            best_aic = aic
+            best_k = k
+            best_params = (wgt, mu, sigma)
+
+    print("Model comparison results:")
+    for res in results:
+        print(f"  K = {res['k']}: LLH = {res['llh']:.2f}, AIC = {res['aic']:.2f}")
+
+    print("\nBest AIC model:")
+    print(f"  Number of components (K) = {best_k}")
+    print(f"  AIC = {best_aic:.2f}")
+    print("  Weights:", best_params[0])
+    print("  Means:\n", best_params[1])
+    print("  Covariances:\n", best_params[2])
