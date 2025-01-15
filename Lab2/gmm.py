@@ -3,7 +3,7 @@ from sklearn.mixture import GaussianMixture
 import numpy as np
 from scipy.stats import norm
 from scipy.stats import multivariate_normal
-from sklearn.mixture import GaussianMixture
+
 
 
 class GMM():
